@@ -145,18 +145,26 @@ tbody td{padding:9px 11px;vertical-align:middle;color:var(--text)}
 </div>
 
 <div class="filter-bar">
-  <div class="fg"><label>De (criação)</label><input type="date" id="f-from"></div>
-  <div class="fg"><label>Até (criação)</label><input type="date" id="f-to"></div>
-  <div class="fg"><label>Status</label>
-    <select id="f-status">
-      <option value="">Todos</option>
-      <option>A FAZER</option><option>NOVO</option><option>FAZENDO</option>
-      <option>CONCLUÍDO</option><option>DONE</option><option>FECHADO</option>
+  <div class="fg"><label>Busca (título/colaborador)</label><input type="text" id="f-search" placeholder="Nome, ID ou texto..." style="min-width:180px"></div>
+  <div class="fg"><label>Status</label><select id="f-status"><option value="">Todos</option></select></div>
+  <div class="fg"><label>Prioridade</label>
+    <select id="f-priority">
+      <option value="">Todas</option>
+      <option value="1">1 — Crítica</option>
+      <option value="2">2 — Média</option>
+      <option value="3">3 — Baixa</option>
+      <option value="4">4 — Baixa</option>
     </select>
   </div>
   <div class="fg"><label>Analista</label><select id="f-analyst"><option value="">Todos</option></select></div>
+  <div class="fg"><label>Projeto (cliente)</label><select id="f-proj"><option value="">Todos</option></select></div>
+  <div class="fg"><label>Tipo Contratação</label><select id="f-tipo"><option value="">Todos</option></select></div>
   <div class="fg"><label>Sede</label><select id="f-sede"><option value="">Todas</option></select></div>
   <div class="fg"><label>ID Task</label><input type="text" id="f-id" placeholder="ex: 21641" style="width:88px"></div>
+  <div class="fg"><label>Criação (de)</label><input type="date" id="f-from"></div>
+  <div class="fg"><label>Criação (até)</label><input type="date" id="f-to"></div>
+  <div class="fg"><label>Alteração (de)</label><input type="date" id="f-changed-from"></div>
+  <div class="fg"><label>Alteração (até)</label><input type="date" id="f-changed-to"></div>
   <div class="fg"><label>Início (de)</label><input type="date" id="f-start"></div>
   <button class="btn-f" onclick="applyFilters()">🔍 Filtrar</button>
   <button class="btn-c" onclick="clearFilters()">✕ Limpar</button>
@@ -224,9 +232,19 @@ function loadProject(p){
   document.getElementById("table-title").textContent=p.replace(/_/g," ");
 }
 function setSelects(items){
-  const an=new Set(),se=new Set();
-  items.forEach(i=>{if(i.a)an.add(i.a);if(i.sede&&i.sede!=="N/A")se.add(i.sede);});
-  fillSel("f-analyst",an,"Todos");fillSel("f-sede",se,"Todas");
+  const an=new Set(),se=new Set(),st=new Set(),pr=new Set(),tp=new Set();
+  items.forEach(i=>{
+    if(i.a)an.add(i.a);
+    if(i.sede&&i.sede!=="N/A")se.add(i.sede);
+    if(i.s)st.add(i.s);
+    if(i.proj)pr.add(i.proj);
+    if(i.tipo)tp.add(i.tipo);
+  });
+  fillSel("f-status",st,"Todos");
+  fillSel("f-analyst",an,"Todos");
+  fillSel("f-sede",se,"Todas");
+  fillSel("f-proj",pr,"Todos");
+  fillSel("f-tipo",tp,"Todos");
 }
 function fillSel(id,set,ph){
   const el=document.getElementById(id),cur=el.value;
@@ -237,14 +255,26 @@ function fillSel(id,set,ph){
 function v(id){return document.getElementById(id).value.trim();}
 function applyFilters(){
   const fr=v("f-from"),to=v("f-to"),st=v("f-status").toUpperCase();
-  const an=v("f-analyst").toLowerCase(),se=v("f-sede").toLowerCase(),id=v("f-id"),sf=v("f-start");
+  const an=v("f-analyst").toLowerCase(),se=v("f-sede").toLowerCase();
+  const id=v("f-id"),sf=v("f-start"),prio=v("f-priority");
+  const pr=v("f-proj").toLowerCase(),tp=v("f-tipo").toLowerCase();
+  const cf=v("f-changed-from"),ct=v("f-changed-to");
+  const srch=v("f-search").toLowerCase();
   FI=AI.filter(i=>{
     if(fr&&i.cd<fr)return false;if(to&&i.cd>to)return false;
+    if(cf&&i.ch<cf)return false;if(ct&&i.ch>ct)return false;
     if(st&&(i.s||"").toUpperCase()!==st)return false;
     if(an&&!(i.a||"").toLowerCase().includes(an))return false;
     if(se&&!(i.sede||"").toLowerCase().includes(se))return false;
+    if(pr&&!(i.proj||"").toLowerCase().includes(pr))return false;
+    if(tp&&!(i.tipo||"").toLowerCase().includes(tp))return false;
+    if(prio&&String(i.p||"")!==prio)return false;
     if(id&&String(i.i)!==id)return false;
     if(sf&&i.ini&&i.ini<sf)return false;
+    if(srch){
+      const hay=(String(i.i)+" "+(i.t||"")+" "+(i.col||"")).toLowerCase();
+      if(!hay.includes(srch))return false;
+    }
     return true;
   });
   FI.sort((a,b)=>{
@@ -254,8 +284,8 @@ function applyFilters(){
   CPage=1;updateKPIs(FI);renderTable(FI);
 }
 function clearFilters(){
-  ["f-from","f-to","f-id","f-start"].forEach(id=>document.getElementById(id).value="");
-  ["f-status","f-analyst","f-sede"].forEach(id=>document.getElementById(id).value="");
+  ["f-from","f-to","f-id","f-start","f-changed-from","f-changed-to","f-search"].forEach(id=>document.getElementById(id).value="");
+  ["f-status","f-analyst","f-sede","f-priority","f-proj","f-tipo"].forEach(id=>document.getElementById(id).value="");
   applyFilters();
 }
 function updateKPIs(items){
